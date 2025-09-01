@@ -169,73 +169,89 @@ async def handle_download(task):
 
 @Client.on_message(filters.text & filters.private & ~filters.command(["start", "login", "logout", "cancel", "restart", "on", "off"]))
 async def handle_message(client, message):
-    # Check if the message contains a bot link
-    if "t.me" in message.text:
-        try:
-            by = links_collection.find_one({"id": message.chat.id})
-            if by["bypass"] == True:
-                kk = await message.reply("Wait Bypassing Your Link 🖇️")
-                bot_username = message.text.split('/')[-1].split('?')[0]
-                parameter = message.text.split('?')[-1].replace("=", " ")
+    # Extract link from text and caption
+    text = message.text or ""
+    caption = message.caption or ""
+    full_text = f"{text} {caption}".strip()
 
-                try:
-                    acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
-                    await acc.connect()
-                except:
-                    await kk.delete()
-                    return await message.reply("Your Login Session Expired. So Add New String Session.")
-        
-                sent = await acc.send_message(bot_username, f"/{parameter}")
-                await asyncio.sleep(5)
-                async for msg in acc.get_chat_history(bot_username, limit=4):
-                    if msg.text and msg.reply_markup and msg.id >= sent.id:
-                        for row in msg.reply_markup.inline_keyboard:
-                           for button in row:
-                               if button.url:
-                                   sent_msg = await acc.send_message(BYPASS_BOT_USERNAME, f"{button.url}") 
-                                   await asyncio.sleep(30)
-                                   async for msgg in acc.get_chat_history(BYPASS_BOT_USERNAME, limit=4):
-                                       if msgg.text and msgg.id >= sent_msg.id:
-                                           try:
-                                               url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-                                               links = re.findall(url_pattern, msgg.text)
-                                               for link in links:
-                                                   bot_username_sec = link.split('/')[-1].split('?')[0]
-                                                   parameter_sec = link.split('?')[-1].replace("=", " ")
-                                                   await acc.send_message(bot_username_sec, f"/{parameter_sec}")
-                                                   task_queue.append((client, message, bot_username, parameter))
-                                               #    if not links_collection.find_one({"parameter": parameter}):
-                                                #       links_collection.insert_one({"parameter": parameter, "processed": False, "bot_username": bot_username, "parameter": parameter})
-                                                   await kk.delete()
-                                                   return 
-                                               
-                                           except Exception as e:
-                                               await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
-                    else:
-                        if msg.video or msg.document or msg.photo:
-                            await kk.delete()
-                            bot_username = message.text.split('/')[-1].split('?')[0]
-                            parameter = message.text.split('?')[-1].replace("=", " ")
-                            task_queue.append((client, message, bot_username, parameter))
-                        #    if not links_collection.find_one({"link": message.text}):
-                        #        links_collection.insert_one({"link": message.text, "processed": False, "bot_username": bot_username, "parameter": parameter})
-                            break
-                return 
-        except Exception as e:
-            return await message.reply(f"Error parsing link: {e}")
-        try:
-            bot_username = message.text.split('/')[-1].split('?')[0]
-            parameter = message.text.split('?')[-1].replace("=", " ")
-        except Exception as e:
-            return await message.reply(f"Error parsing link: {e}")
+    # Find bot link inside text or caption
+    link = None
+    if "https://t.me/" in full_text or "https://telegram.me/" in full_text:
+        link = next(
+            (word for word in full_text.split() if ("https://t.me/" in word or "https://telegram.me/" in word) and "?start=" in word),
+            None
+        )
 
-        try:
-            task_queue.append((client, message, bot_username, parameter))
-        except Exception as e:
-            return await message.reply(f"Error parsing link: {e}")
-        
-      #  if not links_collection.find_one({"link": message.text}):
-      #      links_collection.insert_one({"link": message.text, "processed": False, "bot_username": bot_username, "parameter": parameter})
+    if not link:
+        return  # no valid link found
+
+    try:
+        by = links_collection.find_one({"id": message.chat.id})
+        if by and by.get("bypass") is True:
+            kk = await message.reply("Wait Bypassing Your Link 🖇️")
+
+            bot_username = link.split('/')[-1].split('?')[0]
+            parameter = link.split('?')[-1].replace("=", " ")
+
+            try:
+                acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
+                await acc.connect()
+            except:
+                await kk.delete()
+                return await message.reply("Your Login Session Expired. So Add New String Session.")
+
+            # Send command to original bot
+            sent = await acc.send_message(bot_username, f"/{parameter}")
+            await asyncio.sleep(5)
+
+            async for msg in acc.get_chat_history(bot_username, limit=4):
+                if msg.text and msg.reply_markup and msg.id >= sent.id:
+                    # Extract inline button urls
+                    for row in msg.reply_markup.inline_keyboard:
+                        for button in row:
+                            if button.url:
+                                sent_msg = await acc.send_message(BYPASS_BOT_USERNAME, f"{button.url}")
+                                await asyncio.sleep(30)
+
+                                async for msgg in acc.get_chat_history(BYPASS_BOT_USERNAME, limit=4):
+                                    if msgg.text and msgg.id >= sent_msg.id:
+                                        try:
+                                            url_pattern = r'http[s]?://(?:[a-zA-Z0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F]{2}))+'
+                                            links = re.findall(url_pattern, msgg.text)
+
+                                            for link2 in links:
+                                                bot_username_sec = link2.split('/')[-1].split('?')[0]
+                                                parameter_sec = link2.split('?')[-1].replace("=", " ")
+                                                await acc.send_message(bot_username_sec, f"/{parameter_sec}")
+
+                                                task_queue.append((client, message, bot_username, parameter))
+
+                                            await kk.delete()
+                                            return
+
+                                        except Exception as e:
+                                            await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
+
+                else:
+                    if msg.video or msg.document or msg.photo:
+                        await kk.delete()
+                        bot_username = link.split('/')[-1].split('?')[0]
+                        parameter = link.split('?')[-1].replace("=", " ")
+                        task_queue.append((client, message, bot_username, parameter))
+                        break
+
+            return
+
+    except Exception as e:
+        return await message.reply(f"Error parsing link: {e}")
+
+    # Fallback (if above flow fails but link exists)
+    try:
+        bot_username = link.split('/')[-1].split('?')[0]
+        parameter = link.split('?')[-1].replace("=", " ")
+        task_queue.append((client, message, bot_username, parameter))
+    except Exception as e:
+        return await message.reply(f"Error parsing link: {e}")
 
 @Client.on_message(filters.private & filters.command(["restart"]))
 async def load_pending_tasks(client, message):
