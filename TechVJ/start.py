@@ -3,7 +3,7 @@
 # Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
 # Ask Doubt on telegram @KingVJ01
 
-import os, sys, subprocess
+import os, sys, subprocess, html
 import base64
 import re
 import asyncio 
@@ -274,90 +274,128 @@ async def handle_message(client, message):
     else:
         task_queue.append((client, message, bot_username, parameter))
 
-
 # handle private
-async def handle_private(client: Client, acc: Client, message: Message, bot_username: str, chatid: int, msgid: int, parameter: str, batch: bool):
+async def handle_private(
+    client: Client,
+    acc: Client,
+    message: Message,
+    bot_username: str,
+    chatid: int,
+    msgid: int,
+    parameter: str,
+    batch: bool
+):
     msg: Message = await acc.get_messages(chatid, msgid)
-    if msg.empty: return 
+    if msg.empty:
+        return
     msg_type = get_message_type(msg)
-    if not msg_type: return 
+    if not msg_type:
+        return
     chat = message.chat.id
-    
-    smsg = await client.send_message(message.chat.id, '**Downloading**', reply_to_message_id=message.id)
+
+    smsg = await client.send_message(chat, '**Downloading**', reply_to_message_id=message.id)
     asyncio.create_task(downstatus(client, f'{message.id}downstatus.txt', smsg, chat))
+
     try:
-        file = await acc.download_media(msg, progress=progress, progress_args=[message,"down"])
+        file = await acc.download_media(
+            msg, progress=progress, progress_args=[message, "down"]
+        )
         os.remove(f'{message.id}downstatus.txt')
     except Exception as e:
-        await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML) 
+        await client.send_message(
+            chat, f"Error: {e}",
+            reply_to_message_id=message.id,
+            parse_mode=enums.ParseMode.HTML
+        )
         return await smsg.delete()
+
     asyncio.create_task(upstatus(client, f'{message.id}upstatus.txt', smsg, chat))
 
-    if msg.caption:
-        caption = msg.caption
-    else:
-        caption = None
-                
-    if "Document" == msg_type:
+    # escape caption safely
+    caption = html.escape(msg.caption) if msg.caption else None
+
+    if msg_type == "Document":
         try:
-            ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
-        except:
             ph_path = None
-        
-        try:
-            k = await client.send_document(FILE_CHANNEL, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
-            if batch == False:
+            if msg.document.thumbs:
+                ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
+
+            k = await client.send_document(
+                FILE_CHANNEL,
+                file,
+                thumb=ph_path,
+                caption=caption,
+                parse_mode=enums.ParseMode.HTML,
+                progress=progress,
+                progress_args=[message, "up"]
+            )
+            if not batch:
                 links_collection.update_one({'parameter': parameter}, {'$set': {'f_msg_id': k.id}})
             else:
                 data = links_collection.find_one({"parameter": parameter})
-                if data["f_msg_id"] == None:
+                if data["f_msg_id"] is None:
                     links_collection.update_one({'parameter': parameter}, {'$set': {'f_msg_id': k.id}})
                 else:
                     links_collection.update_one({'parameter': parameter}, {'$set': {'l_msg_id': k.id}})
         except Exception as e:
-            await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path != None: os.remove(ph_path)
-        
+            await client.send_message(chat, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+        if ph_path:
+            os.remove(ph_path)
 
-    elif "Video" == msg_type:
+    elif msg_type == "Video":
         try:
-            ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
-        except:
             ph_path = None
-        
-        try:
-            k = await client.send_video(FILE_CHANNEL, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
-            if batch == False:
+            if msg.video.thumbs:
+                ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
+
+            k = await client.send_video(
+                FILE_CHANNEL,
+                file,
+                duration=msg.video.duration,
+                width=msg.video.width,
+                height=msg.video.height,
+                thumb=ph_path,
+                caption=caption,
+                parse_mode=enums.ParseMode.HTML,
+                progress=progress,
+                progress_args=[message, "up"]
+            )
+            if not batch:
                 links_collection.update_one({'parameter': parameter}, {'$set': {'f_msg_id': k.id}})
             else:
                 data = links_collection.find_one({"parameter": parameter})
-                if data["f_msg_id"] == None:
+                if data["f_msg_id"] is None:
                     links_collection.update_one({'parameter': parameter}, {'$set': {'f_msg_id': k.id}})
                 else:
                     links_collection.update_one({'parameter': parameter}, {'$set': {'l_msg_id': k.id}})
         except Exception as e:
-            await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path != None: os.remove(ph_path)
+            await client.send_message(chat, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+        if ph_path:
+            os.remove(ph_path)
 
-    elif "Photo" == msg_type:
+    elif msg_type == "Photo":
         try:
-            k = await client.send_photo(FILE_CHANNEL, file, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-            if batch == False:
+            k = await client.send_photo(
+                FILE_CHANNEL,
+                file,
+                caption=caption,
+                parse_mode=enums.ParseMode.HTML
+            )
+            if not batch:
                 links_collection.update_one({'parameter': parameter}, {'$set': {'f_msg_id': k.id}})
             else:
                 data = links_collection.find_one({"parameter": parameter})
-                if data["f_msg_id"] == None:
+                if data["f_msg_id"] is None:
                     links_collection.update_one({'parameter': parameter}, {'$set': {'f_msg_id': k.id}})
                 else:
                     links_collection.update_one({'parameter': parameter}, {'$set': {'l_msg_id': k.id}})
-        except:
-            await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-    
+        except Exception as e:
+            await client.send_message(chat, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
-    if os.path.exists(f'{message.id}upstatus.txt'): 
+    if os.path.exists(f'{message.id}upstatus.txt'):
         os.remove(f'{message.id}upstatus.txt')
         os.remove(file)
-    await client.delete_messages(message.chat.id,[smsg.id])
+    await client.delete_messages(chat, [smsg.id])
 
 
 # get the type of message
