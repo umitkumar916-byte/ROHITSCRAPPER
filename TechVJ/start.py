@@ -163,7 +163,9 @@ async def process_queue():
 async def handle_media_group(client, message, bot_username, parameter):
     chat_id = message.chat.id
     media_group_id = message.media_group_id
+    acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
 
+    await acc.start()
     # Fetch all messages in that media group
     messages = []
     async for msg in acc.get_chat_history(chat_id, limit=20):
@@ -203,6 +205,7 @@ async def handle_media_group(client, message, bot_username, parameter):
     if media:
         await client.send_media_group(chat_id, media)
 
+    await acc.stop()
 
 # handle_download stays same, but works per message
 async def handle_download(task):
