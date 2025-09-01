@@ -8,7 +8,7 @@ import base64
 import re
 import asyncio 
 import pyrogram
-from bot import Bot
+#from bot import Bot
 from pyrogram import Client, filters, enums
 from pyrogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
@@ -85,7 +85,7 @@ async def load_pending_tasks(client, message):
     await kk.edit("Added Successfully")
 
 
-@Bot.on_message(filters.command("update"))
+@Client.on_message(filters.command("update"))
 async def update_bot(client, message):
     msg = await message.reply_text("🔄 Pulling updates from GitHub...")
     try:
