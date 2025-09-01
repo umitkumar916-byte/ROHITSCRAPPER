@@ -8,6 +8,7 @@ import base64
 import re
 import asyncio 
 import pyrogram
+from bot import Bot
 from pyrogram import Client, filters, enums
 from pyrogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
@@ -83,6 +84,32 @@ async def load_pending_tasks(client, message):
             pass
     await kk.edit("Added Successfully")
 
+
+@Bot.on_message(filters.command("update"))
+async def update_bot(client, message):
+    msg = await message.reply_text("🔄 Pulling updates from GitHub...")
+    try:
+        pull = subprocess.run(["git", "pull"], capture_output=True, text=True)
+        if pull.returncode == 0:
+            await msg.edit(f"✅ Updated:\n<pre>{pull.stdout}</pre>")
+        else:
+            await msg.edit(f"❌ Git error:\n<pre>{pull.stderr}</pre>")
+            return
+
+        await asyncio.sleep(2)
+        await msg.edit("♻️ Rᴇsᴛᴀʀᴛɪɴɢ ʙᴏᴛ...")
+
+        # ✅ Delete after 5s
+        await asyncio.sleep(5)
+        try:
+            await msg.delete()
+        except:
+            pass
+
+        os.execl(sys.executable, sys.executable, *sys.argv)
+
+    except Exception as e:
+        await msg.edit(f"⚠️ Error: {e}")
 
 # on & off command 
 @Client.on_message(filters.private & filters.command(["on"]))
