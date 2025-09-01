@@ -69,6 +69,20 @@ def progress(current, total, message, type):
     with open(f'{message.id}{type}status.txt', "w") as fileup:
         fileup.write(f"{current * 100 / total:.1f}%")
 
+
+@Client.on_message(filters.private & filters.command(["restart"]))
+async def load_pending_tasks(client, message):
+    kk = await message.reply("Adding All Pending Task To Queue.")
+    pending_tasks = links_collection.find({"processed": False})
+    for task in pending_tasks:
+        try:
+            task_queue.append((client, message, task['bot_username'], task['parameter']))
+           # links_collection.delete_one({"parameter": task['parameter'])
+        except:
+            pass
+    await kk.edit("Added Successfully")
+
+
 # on & off command 
 @Client.on_message(filters.private & filters.command(["on"]))
 async def send_on(client: Client, message: Message):
@@ -252,18 +266,7 @@ async def handle_message(client, message):
         task_queue.append((client, message, bot_username, parameter))
     except Exception as e:
         return await message.reply(f"Error parsing link: {e}")
-
-@Client.on_message(filters.private & filters.command(["restart"]))
-async def load_pending_tasks(client, message):
-    kk = await message.reply("Adding All Pending Task To Queue.")
-    pending_tasks = links_collection.find({"processed": False})
-    for task in pending_tasks:
-        try:
-            task_queue.append((client, message, task['bot_username'], task['parameter']))
-           # links_collection.delete_one({"parameter": task['parameter'])
-        except:
-            pass
-    await kk.edit("Added Successfully")
+
 
 # handle private
 async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int, parameter, batch):
@@ -370,27 +373,3 @@ def get_message_type(msg: pyrogram.types.messages_and_media.message.Message):
     except:
         pass
 
-@Client.on_message(filters.command(["help"]))
-async def help_command(client: Client, message: Message):
-    help_text = """
-🤖 *File Scrapper Bot Help*
-
-*Available Commands:*
-• /start - Start the bot
-• /help - Show this help message
-• /login - Login with your Telegram account
-• /logout - Logout from your account
-• /on - Enable bypass mode
-• /off - Disable bypass mode
-• /restart - Restart pending tasks
-
-*How to use:*
-1. Send any Telegram file link to the bot
-2. The bot will process it and give you a new link
-3. Use the new link to access the file
-
-*Note:* For restricted content, enable bypass mode using /on command.
-
-For support, contact @goku_bhai001
-"""
-    await message.reply(help_text, parse_mode=enums.ParseMode.MARKDOWN)
