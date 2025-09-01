@@ -276,7 +276,7 @@ async def handle_message(client, message):
 
 
 # handle private
-async def handle_private(client: Client, acc, message: Message, chatid: int, msgid: int, parameter, batch):
+async def handle_private(client: Client, acc: Client, message: Message, bot_username: str, chatid: int, msgid: int, parameter: str, batch: bool):
     msg: Message = await acc.get_messages(chatid, msgid)
     if msg.empty: return 
     msg_type = get_message_type(msg)
