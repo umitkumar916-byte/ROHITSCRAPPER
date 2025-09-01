@@ -19,7 +19,7 @@ class Bot(Client):
         )
 
       
-    async def start(self):
+    async def start(self, *args, **kwargs):
             
         await super().start()
         asyncio.create_task(process_queue())
