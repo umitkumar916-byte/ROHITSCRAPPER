@@ -248,7 +248,7 @@ async def handle_download(task):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-@Client.on_message(filters.text & filters.private & ~filters.command(["start", "login", "logout", "cancel", "restart", "on", "off", "help", "update"]))
+@Client.on_message(filters.incoming & filters.private & ~filters.command(["start", "login", "logout", "cancel", "restart", "on", "off", "help", "update"]))
 async def handle_message(client, message):
     text = message.text or ""
     caption = message.caption or ""
