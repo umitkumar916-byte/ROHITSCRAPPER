@@ -83,4 +83,29 @@ async def main(bot: Client, message: Message):
     await bot.send_message(message.from_user.id, "<b>Account Login Successfully.\n\nIf You Get Any Error Related To AUTH KEY Then /logout first and /login again</b>")
 
 
+@Bot.on_message(filters.command(["help"]))
+async def help_command(client: Client, message: Message):
+    help_text = """
+🤖 *File Scrapper Bot Help*
+
+*Available Commands:*
+• /start - Start the bot
+• /help - Show this help message
+• /login - Login with your Telegram account
+• /logout - Logout from your account
+• /on - Enable bypass mode
+• /off - Disable bypass mode
+• /restart - Restart pending tasks
+
+*How to use:*
+1. Send any Telegram file link to the bot
+2. The bot will process it and give you a new link
+3. Use the new link to access the file
+
+*Note:* For restricted content, enable bypass mode using /on command.
+
+For support, contact @goku_bhai001
+"""
+    await message.reply(help_text, parse_mode=enums.ParseMode.MARKDOWN)
+
 # Credit: @goku_bhai001
