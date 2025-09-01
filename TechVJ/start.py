@@ -235,7 +235,7 @@ async def handle_download(task):
                         links_collection.insert_one(
                             {"parameter": parameter, "processed": False, "bot_username": bot_username, "f_msg_id": None, "l_msg_id": None}
                         )
-                    await handle_private(client, acc, message, bot_username, msg.id, parameter, batch)
+                    await handle_private(client, acc, message, msg.chat.id, msg.id, parameter, batch)
 
         # Only reply if single file
         if batch is False:
