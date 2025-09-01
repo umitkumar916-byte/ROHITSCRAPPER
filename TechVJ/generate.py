@@ -1,6 +1,7 @@
 # Credit: @goku_bhai001
 
 import traceback
+from bot import Bot
 from pyrogram.types import Message
 from pyrogram import Client, filters
 from asyncio.exceptions import TimeoutError
@@ -18,7 +19,7 @@ from database.db import db
 
 SESSION_STRING_SIZE = 351
 
-#@Client.on_message(filters.private & ~filters.forwarded & filters.command(["logout"]))
+@Bot.on_message(filters.private & filters.command(["logout"]))
 async def logout(client, message):
     user_data = await db.get_session(message.from_user.id)  
     if user_data is None:
@@ -26,7 +27,7 @@ async def logout(client, message):
     await db.set_session(message.from_user.id, session=None)  
     await message.reply("**Logout Successfully** ♦")
 
-#@Client.on_message(filters.private & ~filters.forwarded & filters.command(["login"]))
+@Bot.on_message(filters.private & filters.command(["login"]))
 async def main(bot: Client, message: Message):
     user_data = await db.get_session(message.from_user.id)
     if user_data is not None:
