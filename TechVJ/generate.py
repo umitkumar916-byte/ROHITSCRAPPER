@@ -1,7 +1,7 @@
 # Credit: @goku_bhai001
 
 import traceback
-from bot import Bot
+#from bot import Bot
 from pyrogram.types import Message
 from pyrogram import Client, filters
 from asyncio.exceptions import TimeoutError
@@ -19,7 +19,7 @@ from database.db import db
 
 SESSION_STRING_SIZE = 351
 
-@Bot.on_message(filters.private & filters.command(["logout"]))
+@Client.on_message(filters.private & filters.command(["logout"]))
 async def logout(client, message):
     user_data = await db.get_session(message.from_user.id)  
     if user_data is None:
@@ -27,7 +27,7 @@ async def logout(client, message):
     await db.set_session(message.from_user.id, session=None)  
     await message.reply("**Logout Successfully** ♦")
 
-@Bot.on_message(filters.private & filters.command(["login"]))
+@Client.on_message(filters.private & filters.command(["login"]))
 async def main(bot: Client, message: Message):
     user_data = await db.get_session(message.from_user.id)
     if user_data is not None:
@@ -83,7 +83,7 @@ async def main(bot: Client, message: Message):
     await bot.send_message(message.from_user.id, "<b>Account Login Successfully.\n\nIf You Get Any Error Related To AUTH KEY Then /logout first and /login again</b>")
 
 
-@Bot.on_message(filters.command(["help"]))
+@Client.on_message(filters.command(["help"]))
 async def help_command(client: Client, message: Message):
     help_text = """
 🤖 *File Scrapper Bot Help*
