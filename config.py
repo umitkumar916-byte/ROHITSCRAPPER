@@ -1,7 +1,7 @@
 import os
 
 # Bot token @Botfather
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7713330273:AAGHjk3j1ceYGi0ibvx4LnPotBKfBl6OcTg")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7713330273:AAHGTZMO6PnrJx0XheVNKYe98KRKTWYze5Y")
 
 # Your API ID from my.telegram.org
 API_ID = int(os.environ.get("API_ID", "25649636"))
