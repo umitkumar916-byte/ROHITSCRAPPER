@@ -166,7 +166,7 @@ async def handle_media_group(client, message, bot_username, parameter):
 
     # Fetch all messages in that media group
     messages = []
-    async for msg in client.get_chat_history(chat_id, limit=20):
+    async for msg in acc.get_chat_history(chat_id, limit=20):
         if msg.media_group_id == media_group_id:
             messages.append(msg)
 
