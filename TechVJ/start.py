@@ -3,12 +3,13 @@
 # Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
 # Ask Doubt on telegram @KingVJ01
 
-import os
+import os, sys, subprocess
 import base64
 import re
 import asyncio 
 import pyrogram
 from pyrogram import Client, filters, enums
+from pyrogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message 
 from config import API_ID, API_HASH, BYPASS_BOT_USERNAME, BYPASS, FILE_CHANNEL, FILE_BOT_USERNAME, SESSION, HOW_TO_WATCH_LINK
@@ -130,10 +131,56 @@ async def process_queue():
         else:
             await asyncio.sleep(10)  # Sleep to prevent busy waiting
 
+
+# New function: handle media groups
+async def handle_media_group(client, message, bot_username, parameter):
+    chat_id = message.chat.id
+    media_group_id = message.media_group_id
+
+    # Fetch all messages in that media group
+    messages = []
+    async for msg in client.get_chat_history(chat_id, limit=20):
+        if msg.media_group_id == media_group_id:
+            messages.append(msg)
+
+    messages = sorted(messages, key=lambda m: m.id)  # keep original order
+    batch = True if len(messages) > 1 else False
+
+    # Create temp placeholders
+    results = []
+    for msg in messages:
+        task_queue.append((client, msg, bot_username, parameter))
+        results.append(msg)
+
+    # After all are queued, generate one link for the full group
+    data = links_collection.find_one({"parameter": parameter})
+    if not data:
+        return await client.send_message(chat_id, "❌ No files found. Please check the link and try again.")
+
+    base_string = await encode(f"get-{data['f_msg_id'] * abs(FILE_CHANNEL)}-{data['l_msg_id'] * abs(FILE_CHANNEL)}")
+    link = f"https://t.me/{FILE_BOT_USERNAME}?start={base_string}"
+
+    # Build the same media group response but with updated caption containing link
+    media = []
+    for i, msg in enumerate(results):
+        cap = msg.caption or ""
+        if i == 0:  # only first one has caption with link
+            cap += f"\n\n🔗 Updated Link: {link}"
+        if msg.photo:
+            media.append(InputMediaPhoto(msg.photo.file_id, caption=cap))
+        elif msg.video:
+            media.append(InputMediaVideo(msg.video.file_id, caption=cap))
+        elif msg.document:
+            media.append(InputMediaDocument(msg.document.file_id, caption=cap))
+
+    if media:
+        await client.send_media_group(chat_id, media)
+
+
+# handle_download stays same, but works per message
 async def handle_download(task):
     client, message, bot_username, parameter = task
-    
-    
+
     try:
         acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
         await acc.connect()
@@ -150,45 +197,37 @@ async def handle_download(task):
         else:
             batch = False
             limit = 4
-        
+
         sent_message = await acc.send_message(bot_username, f"/{parameter}")
-        await asyncio.sleep(5)  # Adjust sleep time as necessary
-        
+        await asyncio.sleep(5)
+
         async for msg in acc.get_chat_history(bot_username, limit=limit):
             if msg.id >= sent_message.id:
                 if msg.document or msg.video or msg.photo:
                     if not links_collection.find_one({"parameter": parameter}):
-                        links_collection.insert_one({"parameter": parameter, "processed": False, "bot_username": bot_username, "f_msg_id": None, "l_msg_id": None})
+                        links_collection.insert_one(
+                            {"parameter": parameter, "processed": False, "bot_username": bot_username, "f_msg_id": None, "l_msg_id": None}
+                        )
                     await handle_private(client, acc, message, bot_username, msg.id, parameter, batch)
 
-        if batch == False:
+        # Only reply if single file
+        if batch is False:
             data = links_collection.find_one({"parameter": parameter})
             base_string = await encode(f"get-{data['f_msg_id'] * abs(FILE_CHANNEL)}")
             link = f"https://t.me/{FILE_BOT_USERNAME}?start={base_string}"
             await message.reply(f"🔗 Here is your link 🔗\n\n\u200b{link}\n\n👀 How To Watch Video 👀\n{HOW_TO_WATCH_LINK}", disable_web_page_preview=True)
-            if links_collection.find_one({"parameter": parameter}):
-                links_collection.delete_one({"parameter": parameter})
-        else:
-            data = links_collection.find_one({"parameter": parameter})
-            if not data:
-                return await message.reply("❌ No files found. Please check the link and try again.")
-            base_string = await encode(f"get-{data['f_msg_id'] * abs(FILE_CHANNEL)}-{data['l_msg_id'] * abs(FILE_CHANNEL)}")
-            link = f"https://t.me/{FILE_BOT_USERNAME}?start={base_string}"
-            await message.reply(f"🔗 Here is your link 🔗\n\n\u200b{link}\n\n👀 How To Watch Video 👀\n{HOW_TO_WATCH_LINK}", disable_web_page_preview=True)
-            if links_collection.find_one({"parameter": parameter}):
-                links_collection.delete_one({"parameter": parameter})
-            
+            links_collection.delete_one({"parameter": parameter})
+
     except Exception as e:
         print(f"An error occurred: {e}")
 
-@Client.on_message(filters.text & filters.private & ~filters.command(["start", "login", "logout", "cancel", "restart", "on", "off"]))
+@Client.on_message(filters.text & filters.private & ~filters.command(["start", "login", "logout", "cancel", "restart", "on", "off", "help", "update"]))
 async def handle_message(client, message):
-    # Extract link from text and caption
     text = message.text or ""
     caption = message.caption or ""
     full_text = f"{text} {caption}".strip()
 
-    # Find bot link inside text or caption
+    # Extract bot link from text or caption
     link = None
     if "https://t.me/" in full_text or "https://telegram.me/" in full_text:
         link = next(
@@ -199,73 +238,14 @@ async def handle_message(client, message):
     if not link:
         return  # no valid link found
 
-    try:
-        by = links_collection.find_one({"id": message.chat.id})
-        if by and by.get("bypass") is True:
-            kk = await message.reply("Wait Bypassing Your Link 🖇️")
+    bot_username = link.split('/')[-1].split('?')[0]
+    parameter = link.split('?')[-1].replace("=", " ")
 
-            bot_username = link.split('/')[-1].split('?')[0]
-            parameter = link.split('?')[-1].replace("=", " ")
-
-            try:
-                acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
-                await acc.connect()
-            except:
-                await kk.delete()
-                return await message.reply("Your Login Session Expired. So Add New String Session.")
-
-            # Send command to original bot
-            sent = await acc.send_message(bot_username, f"/{parameter}")
-            await asyncio.sleep(5)
-
-            async for msg in acc.get_chat_history(bot_username, limit=4):
-                if msg.text and msg.reply_markup and msg.id >= sent.id:
-                    # Extract inline button urls
-                    for row in msg.reply_markup.inline_keyboard:
-                        for button in row:
-                            if button.url:
-                                sent_msg = await acc.send_message(BYPASS_BOT_USERNAME, f"{button.url}")
-                                await asyncio.sleep(30)
-
-                                async for msgg in acc.get_chat_history(BYPASS_BOT_USERNAME, limit=4):
-                                    if msgg.text and msgg.id >= sent_msg.id:
-                                        try:
-                                            url_pattern = r'http[s]?://(?:[a-zA-Z0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F]{2}))+'
-                                            links = re.findall(url_pattern, msgg.text)
-
-                                            for link2 in links:
-                                                bot_username_sec = link2.split('/')[-1].split('?')[0]
-                                                parameter_sec = link2.split('?')[-1].replace("=", " ")
-                                                await acc.send_message(bot_username_sec, f"/{parameter_sec}")
-
-                                                task_queue.append((client, message, bot_username, parameter))
-
-                                            await kk.delete()
-                                            return
-
-                                        except Exception as e:
-                                            await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
-
-                else:
-                    if msg.video or msg.document or msg.photo:
-                        await kk.delete()
-                        bot_username = link.split('/')[-1].split('?')[0]
-                        parameter = link.split('?')[-1].replace("=", " ")
-                        task_queue.append((client, message, bot_username, parameter))
-                        break
-
-            return
-
-    except Exception as e:
-        return await message.reply(f"Error parsing link: {e}")
-
-    # Fallback (if above flow fails but link exists)
-    try:
-        bot_username = link.split('/')[-1].split('?')[0]
-        parameter = link.split('?')[-1].replace("=", " ")
+    # If this is a media group -> handle as group
+    if message.media_group_id:
+        await handle_media_group(client, message, bot_username, parameter)
+    else:
         task_queue.append((client, message, bot_username, parameter))
-    except Exception as e:
-        return await message.reply(f"Error parsing link: {e}")
 
 
 # handle private
