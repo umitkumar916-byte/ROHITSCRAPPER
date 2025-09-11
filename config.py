@@ -23,7 +23,7 @@ DB_URI = os.environ.get(
 )
 DB_NAME = os.environ.get("DB_NAME", "scrapper1")
 
-FILE_CHANNEL = int(os.environ.get("FILE_CHANNEL", "-1002016298313"))
+FILE_CHANNEL = int(os.environ.get("FILE_CHANNEL", "-1003061857331"))
 FILE_BOT_USERNAME = os.environ.get("FILE_BOT_USERNAME", "Gori_madam1bot")
 
 BYPASS = bool(os.environ.get("BYPASS", False))
