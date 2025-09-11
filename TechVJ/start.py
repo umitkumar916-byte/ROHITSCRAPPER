@@ -160,12 +160,14 @@ async def process_queue():
 
 
 # New function: handle media groups
+
 async def handle_media_group(client, message, bot_username, parameter):
     chat_id = message.chat.id
     media_group_id = message.media_group_id
-    acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
 
+    acc = Client("saverestricted", session_string=SESSION, api_hash=API_HASH, api_id=API_ID)
     await acc.start()
+
     # Fetch all messages in that media group
     messages = []
     async for msg in acc.get_chat_history(chat_id, limit=20):
@@ -181,12 +183,24 @@ async def handle_media_group(client, message, bot_username, parameter):
         task_queue.append((client, msg, bot_username, parameter))
         results.append(msg)
 
-    # After all are queued, generate one link for the full group
+    # Fetch link data from DB
     data = links_collection.find_one({"parameter": parameter})
     if not data:
+        await acc.stop()
         return await client.send_message(chat_id, "❌ No files found. Please check the link and try again.")
 
-    base_string = await encode(f"get-{data['f_msg_id'] * abs(FILE_CHANNEL)}-{data['l_msg_id'] * abs(FILE_CHANNEL)}")
+    # Try getting f_msg_id and l_msg_id safely
+    f_msg_id = data.get("f_msg_id") or (messages[0].id if messages else None)
+    l_msg_id = data.get("l_msg_id") or (messages[-1].id if messages else None)
+
+    if not f_msg_id or not l_msg_id:
+        await acc.stop()
+        return await client.send_message(
+            chat_id,
+            "❌ File message IDs are missing or invalid. Please regenerate the link."
+        )
+
+    base_string = await encode(f"get-{f_msg_id * abs(FILE_CHANNEL)}-{l_msg_id * abs(FILE_CHANNEL)}")
     link = f"https://t.me/{FILE_BOT_USERNAME}?start={base_string}"
 
     # Build the same media group response but with updated caption containing link
@@ -195,6 +209,7 @@ async def handle_media_group(client, message, bot_username, parameter):
         cap = msg.caption or ""
         if i == 0:  # only first one has caption with link
             cap += f"\n\n🔗 Updated Link: {link}"
+
         if msg.photo:
             media.append(InputMediaPhoto(msg.photo.file_id, caption=cap))
         elif msg.video:
